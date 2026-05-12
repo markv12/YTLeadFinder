@@ -190,9 +190,11 @@ with tabs[1]:
         # Ranking Logic
         rank_query = st.text_input("Enter a query to rank channels by relevance (e.g., 'DAW workflow for beginners')")
         
-        rankings = []
+        if "last_rankings" not in st.session_state:
+            st.session_state.last_rankings = []
         
         if st.button("Rank Channels"):
+            new_rankings = []
             embeddings = storage_utils.load_embeddings()
             
             # Check for missing channel embeddings
@@ -230,29 +232,74 @@ with tabs[1]:
                             if cid in embeddings:
                                 score = cosine_similarity([query_emb], [embeddings[cid]])[0][0]
                                 c_data = storage_utils.get_channel_data(cid)
-                                rankings.append({
+                                new_rankings.append({
+                                    "ID": cid,
                                     "Channel": c_data["title"],
                                     "Similarity Score": round(float(score), 4),
                                     "Subs": c_data.get("subscriberCount"),
                                     "Videos": c_data.get("videoCount"),
                                     "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
                                 })
-                        if not rankings:
+                        if not new_rankings:
                             st.warning("No embeddings found for ranking.")
+                        else:
+                            st.session_state.last_rankings = new_rankings
 
-        # Default view (no rankings or empty query)
-        if not rankings:
+        # Determine which data to show
+        if st.session_state.last_rankings:
+            # Filter rankings to only show channels currently in the master list
+            df = pd.DataFrame([r for r in st.session_state.last_rankings if r['ID'] in channel_ids])
+            if not df.empty:
+                df = df.sort_values(by="Similarity Score", ascending=False)
+        
+        # If no rankings or filtered rankings empty, show default view
+        if not st.session_state.last_rankings or df.empty:
+            rankings = []
             for cid in channel_ids:
                 c_data = storage_utils.get_channel_data(cid)
                 if c_data:
                     rankings.append({
+                        "ID": cid,
                         "Channel": c_data["title"],
                         "Subs": c_data.get("subscriberCount"),
                         "Videos": c_data.get("videoCount"),
                         "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
                     })
             df = pd.DataFrame(rankings)
-        else:
-            df = pd.DataFrame(rankings).sort_values(by="Similarity Score", ascending=False)
         
-        ui_components.render_channel_table(df)
+        # Side-by-Side Layout
+        col_main, col_sim = st.columns([2, 1])
+        
+        with col_main:
+            event = ui_components.render_channel_table(df)
+            
+        if event and event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            target_row = df.iloc[selected_idx]
+            target_id = target_row["ID"]
+            target_name = target_row["Channel"]
+            
+            with col_sim:
+                st.subheader(f"✨ Channels like {target_name}")
+                embeddings = storage_utils.load_embeddings()
+                similar = openai_utils.find_similar_channels(target_id, embeddings)
+                
+                if not similar:
+                    st.info("No similar channels found in database.")
+                else:
+                    sim_rankings = []
+                    for s in similar:
+                        c_data = storage_utils.get_channel_data(s['id'])
+                        if c_data:
+                            sim_rankings.append({
+                                "ID": s['id'],
+                                "Channel": c_data["title"],
+                                "Similarity Score": s['score'],
+                                "Subs": c_data.get("subscriberCount"),
+                                "Videos": c_data.get("videoCount"),
+                                "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
+                            })
+                    
+                    if sim_rankings:
+                        sim_df = pd.DataFrame(sim_rankings)
+                        ui_components.render_channel_table(sim_df)

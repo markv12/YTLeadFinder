@@ -1,6 +1,8 @@
 import os
 import logging
 import tiktoken
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -88,3 +90,30 @@ def create_channel_profile_text(channel_data):
     # Just concatenate titles with a separator
     titles = [v['title'] for v in selected_videos if 'title' in v]
     return " | ".join(titles)
+
+def find_similar_channels(target_id, embeddings_dict, limit=10):
+    """
+    Finds channels similar to the target_id based on cosine similarity of embeddings.
+    
+    Returns:
+        List of dicts: [{"id": cid, "score": float}, ...]
+    """
+    if target_id not in embeddings_dict:
+        return []
+        
+    target_emb = np.array(embeddings_dict[target_id]).reshape(1, -1)
+    
+    scores = []
+    for cid, emb in embeddings_dict.items():
+        if cid == target_id:
+            continue
+            
+        sim_score = cosine_similarity(target_emb, np.array(emb).reshape(1, -1))[0][0]
+        scores.append({
+            "id": cid,
+            "score": round(float(sim_score), 4)
+        })
+        
+    # Sort by score descending
+    scores.sort(key=lambda x: x['score'], reverse=True)
+    return scores[:limit]
