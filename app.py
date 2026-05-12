@@ -152,7 +152,7 @@ with tabs[0]:
                     df_res = pd.DataFrame(s['results'])
                     st.dataframe(
                         df_res[["title", "channelTitle", "publishedAt"]], 
-                        use_container_width=False, 
+                        width="content", 
                         height=(len(df_res) + 1) * 35 + 3
                     )
 
@@ -173,7 +173,7 @@ with tabs[0]:
                     df_res = pd.DataFrame(s['results'])
                     st.dataframe(
                         df_res[["title", "channelTitle", "publishedAt"]], 
-                        use_container_width=False, 
+                        width="content", 
                         height=(len(df_res) + 1) * 35 + 3
                     )
 
@@ -267,8 +267,8 @@ with tabs[1]:
                     })
             df = pd.DataFrame(rankings)
         
-        # Side-by-Side Layout
-        col_main, col_sim = st.columns([2, 1])
+        # Side-by-Side Layout with spacer to keep them close
+        col_main, col_sim, col_spacer = st.columns([1.5, 1.5, 1])
         
         with col_main:
             event = ui_components.render_channel_table(df)
@@ -302,4 +302,4 @@ with tabs[1]:
                     
                     if sim_rankings:
                         sim_df = pd.DataFrame(sim_rankings)
-                        ui_components.render_channel_table(sim_df)
+                        ui_components.render_channel_table(sim_df, show_selection=False)
