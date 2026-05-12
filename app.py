@@ -66,7 +66,7 @@ with tabs[0]:
         with st.spinner("Searching YouTube..."):
             pub_after_str = None
             if published_after:
-                pub_after_str = f"{published_after}T00:00:00Z"
+                pub_after_str = f"{published_after}"
                 
             results = youtube_utils.search_videos(
                 search_query, 
@@ -99,7 +99,7 @@ with tabs[0]:
                 with st.expander(f"{s['query']}"):
                     st.write(f"Results: {len(s['results'])} videos")
                     
-                    if st.button(f"Approve Search {actual_index}", key=f"app_{actual_index}"):
+                    if st.button(f"Approve Search", key=f"app_{actual_index}"):
                         with st.spinner("Fetching full channel data (this may take a while)..."):
                             # Approve the search
                             storage_utils.approve_search(actual_index)
@@ -142,14 +142,18 @@ with tabs[0]:
                             st.success("Search approved and channel data fetched!")
                             st.rerun()
                     
-                    if st.button(f"Delete Search {actual_index}", key=f"del_{actual_index}"):
+                    if st.button(f"Delete Search", key=f"del_{actual_index}"):
                         storage_utils.delete_search(actual_index)
                         st.success("Search deleted.")
                         st.rerun()
                     
                     # Show results preview
                     df_res = pd.DataFrame(s['results'])
-                    st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
+                    st.dataframe(
+                        df_res[["title", "channelTitle", "publishedAt"]], 
+                        use_container_width=False, 
+                        height=(len(df_res) + 1) * 35 + 3
+                    )
 
         st.header("✅ Approved Searches")
         if not approved:
@@ -159,14 +163,18 @@ with tabs[0]:
                 with st.expander(f"{s['query']}"):
                     st.write(f"Results: {len(s['results'])} videos")
                     
-                    if st.button(f"Delete Search {actual_index}", key=f"del_app_{actual_index}"):
+                    if st.button(f"Delete Search", key=f"del_app_{actual_index}"):
                         storage_utils.delete_search(actual_index)
                         st.success("Search deleted.")
                         st.rerun()
                     
                     # Show results preview
                     df_res = pd.DataFrame(s['results'])
-                    st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
+                    st.dataframe(
+                        df_res[["title", "channelTitle", "publishedAt"]], 
+                        use_container_width=False, 
+                        height=(len(df_res) + 1) * 35 + 3
+                    )
 
 # --- Tab 2: Master Channel Database ---
 with tabs[1]:
@@ -180,6 +188,8 @@ with tabs[1]:
         
         # Ranking Logic
         rank_query = st.text_input("Enter a query to rank channels by relevance (e.g., 'DAW workflow for beginners')")
+        
+        rankings = []
         
         if st.button("Rank Channels"):
             embeddings = storage_utils.load_embeddings()
@@ -215,7 +225,6 @@ with tabs[1]:
                 with st.spinner("Ranking..."):
                     query_emb = openai_utils.get_embedding(rank_query)
                     if query_emb:
-                        rankings = []
                         for cid in channel_ids:
                             if cid in embeddings:
                                 score = cosine_similarity([query_emb], [embeddings[cid]])[0][0]
@@ -227,24 +236,42 @@ with tabs[1]:
                                     "Videos": c_data.get("videoCount"),
                                     "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
                                 })
-                        
-                        if rankings:
-                            df = pd.DataFrame(rankings).sort_values(by="Similarity Score", ascending=False)
-                            
-                            # Wrap in columns to prevent the table from stretching across the wide layout
-                            col_tbl, _ = st.columns([3, 1])
-                            with col_tbl:
-                                st.dataframe(
-                                    df, 
-                                    hide_index=True,
-                                    use_container_width=False,
-                                    column_config={
-                                        "Channel": st.column_config.TextColumn(width="medium"),
-                                        "Similarity Score": st.column_config.NumberColumn(format="%.4f", width="medium"),
-                                        "Subs": st.column_config.NumberColumn(width="medium"),
-                                        "Videos": st.column_config.NumberColumn(width="medium"),
-                                        "URL": st.column_config.LinkColumn("YouTube Link", display_text="Visit Channel", width="medium")
-                                    }
-                                )
-                        else:
+                        if not rankings:
                             st.warning("No embeddings found for ranking.")
+
+        # Default view (no rankings or empty query)
+        if not rankings:
+            for cid in channel_ids:
+                c_data = storage_utils.get_channel_data(cid)
+                if c_data:
+                    rankings.append({
+                        "Channel": c_data["title"],
+                        "Subs": c_data.get("subscriberCount"),
+                        "Videos": c_data.get("videoCount"),
+                        "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
+                    })
+            df = pd.DataFrame(rankings)
+        else:
+            df = pd.DataFrame(rankings).sort_values(by="Similarity Score", ascending=False)
+        
+        if not df.empty:
+            # Wrap in columns to prevent the table from stretching across the wide layout
+            col_tbl, _ = st.columns([3, 1])
+            with col_tbl:
+                # Dynamic column config based on whether similarity score is present
+                col_cfg = {
+                    "Channel": st.column_config.TextColumn(width="medium"),
+                    "Subs": st.column_config.NumberColumn(width="medium"),
+                    "Videos": st.column_config.NumberColumn(width="medium"),
+                    "URL": st.column_config.LinkColumn("YouTube Link", display_text="Visit Channel", width="medium")
+                }
+                if "Similarity Score" in df.columns:
+                    col_cfg["Similarity Score"] = st.column_config.NumberColumn(format="%.4f", width="medium")
+                
+                st.dataframe(
+                    df, 
+                    hide_index=True,
+                    use_container_width=False,
+                    column_config=col_cfg,
+                    height=(len(df) + 1) * 35 + 3
+                )
