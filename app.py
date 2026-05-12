@@ -14,12 +14,39 @@ st.set_page_config(page_title="Music Game Lead Finder", layout="wide")
 
 st.title("🎵 Music Game Lead Finder")
 
+# --- Sidebar: Settings & Maintenance ---
+with st.sidebar:
+    st.header("⚙️ Settings")
+    st.subheader("Cache Management")
+    
+    if "confirm_clear" not in st.session_state:
+        st.session_state.confirm_clear = False
+
+    if not st.session_state.confirm_clear:
+        if st.button("🗑️ Clear Embeddings Cache", help="Force regeneration of OpenAI embeddings"):
+            st.session_state.confirm_clear = True
+            st.rerun()
+    else:
+        st.warning("⚠️ This will delete local embeddings. Regenerating them will cost OpenAI credits.")
+        col_c1, col_c2 = st.columns(2)
+        with col_c1:
+            if st.button("✅ Confirm"):
+                if os.path.exists(storage_utils.EMBEDDINGS_FILE):
+                    os.remove(storage_utils.EMBEDDINGS_FILE)
+                    st.success("Cleared!")
+                st.session_state.confirm_clear = False
+                st.rerun()
+        with col_c2:
+            if st.button("❌ Cancel"):
+                st.session_state.confirm_clear = False
+                st.rerun()
+
 if not os.getenv("YOUTUBE_API_KEY") or not os.getenv("OPENAI_API_KEY"):
     st.warning("Please configure your API keys in the `.env` file.")
     st.info("Template provided in `.env.template`")
     st.stop()
 
-tabs = st.tabs(["Search YouTube", "Master Channel Database"])
+tabs = st.tabs(["Search YouTube", "Channel Database"])
 
 # --- Tab 1: Search YouTube ---
 with tabs[0]:
@@ -129,29 +156,6 @@ with tabs[1]:
         st.info("No approved channels yet. Run a search and approve results.")
     else:
         st.write(f"Tracking **{len(channel_ids)}** unique channels.")
-
-        # Cache management
-        if "confirm_clear" not in st.session_state:
-            st.session_state.confirm_clear = False
-
-        if not st.session_state.confirm_clear:
-            if st.button("🗑️ Clear All Embeddings (Force Regeneration)"):
-                st.session_state.confirm_clear = True
-                st.rerun()
-        else:
-            st.warning("⚠️ Are you sure? This will delete the local cache and cost OpenAI credits to regenerate.")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("✅ Yes, Clear Everything"):
-                    if os.path.exists(storage_utils.EMBEDDINGS_FILE):
-                        os.remove(storage_utils.EMBEDDINGS_FILE)
-                        st.success("Embeddings cache cleared.")
-                    st.session_state.confirm_clear = False
-                    st.rerun()
-            with c2:
-                if st.button("❌ Cancel"):
-                    st.session_state.confirm_clear = False
-                    st.rerun()
         
         # Ranking Logic
         rank_query = st.text_input("Enter a query to rank channels by relevance (e.g., 'DAW workflow for beginners')")
@@ -223,5 +227,3 @@ with tabs[1]:
                                 )
                         else:
                             st.warning("No embeddings found for ranking.")
-
-
