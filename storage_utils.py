@@ -94,7 +94,7 @@ def load_embeddings():
             with np.load(EMBEDDINGS_FILE, allow_pickle=True) as data:
                 ids = data['ids']
                 embs = data['embs']
-                return {cid: emb.tolist() for cid, emb in zip(ids, embs)}
+                return {cid: emb for cid, emb in zip(ids, embs)}
         except Exception:
             return {}
     return {}

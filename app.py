@@ -240,9 +240,18 @@ with tabs[1]:
                 with st.spinner("Ranking..."):
                     query_emb = openai_utils.get_embedding(rank_query)
                     if query_emb:
-                        for cid in channel_ids:
-                            if cid in embeddings:
-                                score = cosine_similarity([query_emb], [embeddings[cid]])[0][0]
+                        valid_cids = [cid for cid in channel_ids if cid in embeddings]
+                        if not valid_cids:
+                            st.warning("No embeddings found for ranking.")
+                        else:
+                            # Convert to matrix for fast computation
+                            query_matrix = np.array([query_emb])
+                            embs_matrix = np.array([embeddings[cid] for cid in valid_cids])
+                            
+                            # Single matrix operation
+                            sim_scores = cosine_similarity(query_matrix, embs_matrix)[0]
+                            
+                            for cid, score in zip(valid_cids, sim_scores):
                                 c_data = storage_utils.get_channel_data(cid)
                                 new_rankings.append({
                                     "ID": cid,
@@ -252,9 +261,6 @@ with tabs[1]:
                                     "Videos": c_data.get("videoCount"),
                                     "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
                                 })
-                        if not new_rankings:
-                            st.warning("No embeddings found for ranking.")
-                        else:
                             st.session_state.last_rankings = new_rankings
 
         # Determine which data to show

@@ -101,17 +101,23 @@ def find_similar_channels(target_id, embeddings_dict, limit=10):
     if target_id not in embeddings_dict:
         return []
         
-    target_emb = np.array(embeddings_dict[target_id]).reshape(1, -1)
+    ids = list(embeddings_dict.keys())
+    embs_matrix = np.array(list(embeddings_dict.values()))
+    
+    target_idx = ids.index(target_id)
+    target_emb = embs_matrix[target_idx:target_idx+1]
+    
+    # Fast vectorized similarity calculation
+    sim_scores = cosine_similarity(target_emb, embs_matrix)[0]
     
     scores = []
-    for cid, emb in embeddings_dict.items():
+    for i, cid in enumerate(ids):
         if cid == target_id:
             continue
             
-        sim_score = cosine_similarity(target_emb, np.array(emb).reshape(1, -1))[0][0]
         scores.append({
             "id": cid,
-            "score": round(float(sim_score), 4)
+            "score": round(float(sim_scores[i]), 4)
         })
         
     # Sort by score descending
