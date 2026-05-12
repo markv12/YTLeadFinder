@@ -139,7 +139,22 @@ with tabs[1]:
                         
                         if rankings:
                             df = pd.DataFrame(rankings).sort_values(by="Similarity Score", ascending=False)
-                            st.table(df)
+                            
+                            # Wrap in columns to prevent the table from stretching across the wide layout
+                            col_tbl, _ = st.columns([3, 1])
+                            with col_tbl:
+                                st.dataframe(
+                                    df, 
+                                    hide_index=True,
+                                    use_container_width=False,
+                                    column_config={
+                                        "Channel": st.column_config.TextColumn(width="medium"),
+                                        "Similarity Score": st.column_config.NumberColumn(format="%.4f", width="medium"),
+                                        "Subs": st.column_config.NumberColumn(width="medium"),
+                                        "Videos": st.column_config.NumberColumn(width="medium"),
+                                        "URL": st.column_config.LinkColumn("YouTube Link", display_text="Visit Channel", width="medium")
+                                    }
+                                )
                         else:
                             st.warning("No embeddings found for ranking.")
 
