@@ -82,18 +82,23 @@ with tabs[0]:
                 st.error("No results found or API error.")
 
     st.divider()
-    st.header("📜 Search History & Approval")
     searches = storage_utils.get_all_searches()
     
     if not searches:
+        st.header("📜 Search History & Approval")
         st.info("No search history.")
     else:
-        for i, s in enumerate(reversed(searches)):
-            actual_index = len(searches) - 1 - i
-            with st.expander(f"{s['timestamp']} - Query: {s['query']} ({'APPROVED' if s['approved'] else 'PENDING'})"):
-                st.write(f"Results: {len(s['results'])} videos")
-                
-                if not s['approved']:
+        pending = [(i, s) for i, s in enumerate(searches) if not s['approved']]
+        approved = [(i, s) for i, s in enumerate(searches) if s['approved']]
+
+        st.header("⏳ Pending Searches")
+        if not pending:
+            st.info("No pending searches.")
+        else:
+            for actual_index, s in reversed(pending):
+                with st.expander(f"{s['query']}"):
+                    st.write(f"Results: {len(s['results'])} videos")
+                    
                     if st.button(f"Approve Search {actual_index}", key=f"app_{actual_index}"):
                         with st.spinner("Fetching full channel data (this may take a while)..."):
                             # Approve the search
@@ -133,19 +138,35 @@ with tabs[0]:
                                         futures = [executor.submit(process_channel, s) for s in batch_stats]
                                         for future in as_completed(futures):
                                             completed_cid = future.result()
-                                            # Optional: you could update a progress bar here
                                         
                             st.success("Search approved and channel data fetched!")
                             st.rerun()
-                
-                if st.button(f"Delete Search {actual_index}", key=f"del_{actual_index}"):
-                    storage_utils.delete_search(actual_index)
-                    st.success("Search deleted.")
-                    st.rerun()
-                
-                # Show results preview
-                df_res = pd.DataFrame(s['results'])
-                st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
+                    
+                    if st.button(f"Delete Search {actual_index}", key=f"del_{actual_index}"):
+                        storage_utils.delete_search(actual_index)
+                        st.success("Search deleted.")
+                        st.rerun()
+                    
+                    # Show results preview
+                    df_res = pd.DataFrame(s['results'])
+                    st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
+
+        st.header("✅ Approved Searches")
+        if not approved:
+            st.info("No approved searches.")
+        else:
+            for actual_index, s in reversed(approved):
+                with st.expander(f"{s['query']}"):
+                    st.write(f"Results: {len(s['results'])} videos")
+                    
+                    if st.button(f"Delete Search {actual_index}", key=f"del_app_{actual_index}"):
+                        storage_utils.delete_search(actual_index)
+                        st.success("Search deleted.")
+                        st.rerun()
+                    
+                    # Show results preview
+                    df_res = pd.DataFrame(s['results'])
+                    st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
 
 # --- Tab 2: Master Channel Database ---
 with tabs[1]:
