@@ -1,0 +1,22 @@
+# API Keys and Secrets
+.env
+
+# Local Data Database
+data/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.venv
+venv/
+ENV/
+env/
+.env
+
+# Streamlit
+.streamlit/
+
+# OS files
+.DS_Store
+Thumbs.db
