@@ -19,9 +19,9 @@ if not os.getenv("YOUTUBE_API_KEY") or not os.getenv("OPENAI_API_KEY"):
     st.info("Template provided in `.env.template`")
     st.stop()
 
-tabs = st.tabs(["YouTube Discovery", "Master Channel Database", "Search History"])
+tabs = st.tabs(["Search YouTube", "Master Channel Database"])
 
-# --- Tab 1: YouTube Discovery ---
+# --- Tab 1: Search YouTube ---
 with tabs[0]:
     st.header("🔍 Discover New Channels")
     search_query = st.text_input("Enter search query (e.g., 'music production tutorial')")
@@ -50,13 +50,79 @@ with tabs[0]:
             )
             if results:
                 storage_utils.save_search(search_query, results)
-                st.success(f"Found {len(results)} videos. View results in 'Search History' to approve.")
+                st.success(f"Found {len(results)} videos. View results below to approve.")
             else:
                 st.error("No results found or API error.")
 
+    st.divider()
+    st.header("📜 Search History & Approval")
+    searches = storage_utils.get_all_searches()
+    
+    if not searches:
+        st.info("No search history.")
+    else:
+        for i, s in enumerate(reversed(searches)):
+            actual_index = len(searches) - 1 - i
+            with st.expander(f"{s['timestamp']} - Query: {s['query']} ({'APPROVED' if s['approved'] else 'PENDING'})"):
+                st.write(f"Results: {len(s['results'])} videos")
+                
+                if not s['approved']:
+                    if st.button(f"Approve Search {actual_index}", key=f"app_{actual_index}"):
+                        with st.spinner("Fetching full channel data (this may take a while)..."):
+                            # Approve the search
+                            storage_utils.approve_search(actual_index)
+                            
+                            # Batch fetch channel stats to save quota (1 unit per 50 channels)
+                            channel_ids_to_fetch = list(set(res['channelId'] for res in s['results']))
+                            
+                            # Filter out channels we already have data for
+                            channel_ids_to_fetch = [cid for cid in channel_ids_to_fetch if not storage_utils.get_channel_data(cid)]
+                            
+                            if channel_ids_to_fetch:
+                                from concurrent.futures import ThreadPoolExecutor, as_completed
+                                
+                                def process_channel(stats):
+                                    cid = stats['id']
+                                    # Get all videos
+                                    videos = youtube_utils.get_all_channel_videos(stats['uploadsPlaylistId'])
+                                    # Get stats for all videos (this is already parallelized inside youtube_utils)
+                                    v_ids = [v['id'] for v in videos]
+                                    v_stats = youtube_utils.batch_get_video_stats(v_ids)
+                                    # Merge
+                                    for v in videos:
+                                        s = v_stats.get(v['id'], {})
+                                        v['viewCount'] = s.get('viewCount', 0)
+                                    stats['videos'] = videos
+                                    storage_utils.save_channel_data(cid, stats)
+                                    return cid
+
+                                # Process in chunks of 50 (YouTube limit)
+                                for i in range(0, len(channel_ids_to_fetch), 50):
+                                    chunk = channel_ids_to_fetch[i:i+50]
+                                    batch_stats = youtube_utils.batch_get_channel_stats(chunk)
+                                    
+                                    # Parallelize the processing of each channel in the chunk
+                                    with ThreadPoolExecutor(max_workers=5) as executor:
+                                        futures = [executor.submit(process_channel, s) for s in batch_stats]
+                                        for future in as_completed(futures):
+                                            completed_cid = future.result()
+                                            # Optional: you could update a progress bar here
+                                        
+                            st.success("Search approved and channel data fetched!")
+                            st.rerun()
+                
+                if st.button(f"Delete Search {actual_index}", key=f"del_{actual_index}"):
+                    storage_utils.delete_search(actual_index)
+                    st.success("Search deleted.")
+                    st.rerun()
+                
+                # Show results preview
+                df_res = pd.DataFrame(s['results'])
+                st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
+
 # --- Tab 2: Master Channel Database ---
 with tabs[1]:
-    st.header("📊 Channel Database & Ranking")
+    st.header("📊 Channel Database")
     
     channel_ids = storage_utils.get_master_channel_ids()
     if not channel_ids:
@@ -158,69 +224,4 @@ with tabs[1]:
                         else:
                             st.warning("No embeddings found for ranking.")
 
-# --- Tab 3: Search History ---
-with tabs[2]:
-    st.header("📜 Search History & Approval")
-    searches = storage_utils.get_all_searches()
-    
-    if not searches:
-        st.info("No search history.")
-    else:
-        for i, s in enumerate(reversed(searches)):
-            actual_index = len(searches) - 1 - i
-            with st.expander(f"{s['timestamp']} - Query: {s['query']} ({'APPROVED' if s['approved'] else 'PENDING'})"):
-                st.write(f"Results: {len(s['results'])} videos")
-                
-                if not s['approved']:
-                    if st.button(f"Approve Search {actual_index}", key=f"app_{actual_index}"):
-                        with st.spinner("Fetching full channel data (this may take a while)..."):
-                            # Approve the search
-                            storage_utils.approve_search(actual_index)
-                            
-                            # Batch fetch channel stats to save quota (1 unit per 50 channels)
-                            channel_ids_to_fetch = list(set(res['channelId'] for res in s['results']))
-                            
-                            # Filter out channels we already have data for
-                            channel_ids_to_fetch = [cid for cid in channel_ids_to_fetch if not storage_utils.get_channel_data(cid)]
-                            
-                            if channel_ids_to_fetch:
-                                from concurrent.futures import ThreadPoolExecutor, as_completed
-                                
-                                def process_channel(stats):
-                                    cid = stats['id']
-                                    # Get all videos
-                                    videos = youtube_utils.get_all_channel_videos(stats['uploadsPlaylistId'])
-                                    # Get stats for all videos (this is already parallelized inside youtube_utils)
-                                    v_ids = [v['id'] for v in videos]
-                                    v_stats = youtube_utils.batch_get_video_stats(v_ids)
-                                    # Merge
-                                    for v in videos:
-                                        s = v_stats.get(v['id'], {})
-                                        v['viewCount'] = s.get('viewCount', 0)
-                                    stats['videos'] = videos
-                                    storage_utils.save_channel_data(cid, stats)
-                                    return cid
 
-                                # Process in chunks of 50 (YouTube limit)
-                                for i in range(0, len(channel_ids_to_fetch), 50):
-                                    chunk = channel_ids_to_fetch[i:i+50]
-                                    batch_stats = youtube_utils.batch_get_channel_stats(chunk)
-                                    
-                                    # Parallelize the processing of each channel in the chunk
-                                    with ThreadPoolExecutor(max_workers=5) as executor:
-                                        futures = [executor.submit(process_channel, s) for s in batch_stats]
-                                        for future in as_completed(futures):
-                                            completed_cid = future.result()
-                                            # Optional: you could update a progress bar here
-                                        
-                            st.success("Search approved and channel data fetched!")
-                            st.rerun()
-                
-                if st.button(f"Delete Search {actual_index}", key=f"del_{actual_index}"):
-                    storage_utils.delete_search(actual_index)
-                    st.success("Search deleted.")
-                    st.rerun()
-                
-                # Show results preview
-                df_res = pd.DataFrame(s['results'])
-                st.dataframe(df_res[["title", "channelTitle", "publishedAt"]])
