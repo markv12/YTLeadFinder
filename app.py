@@ -67,7 +67,7 @@ with tabs[0]:
         with st.spinner("Searching YouTube..."):
             pub_after_str = None
             if published_after:
-                pub_after_str = f"{published_after}"
+                pub_after_str = f"{published_after}T00:00:00Z"
                 
             results = youtube_utils.search_videos(
                 search_query, 
@@ -164,6 +164,9 @@ with tabs[0]:
                     df_res = pd.DataFrame(s['results'])
                     st.dataframe(
                         df_res[["title", "channelTitle", "publishedAt"]], 
+                        column_config={
+                            "publishedAt": st.column_config.DatetimeColumn("Published At", format="YYYY-MM-DD")
+                        },
                         width="content", 
                         height=(len(df_res) + 1) * 35 + 3
                     )
@@ -185,6 +188,9 @@ with tabs[0]:
                     df_res = pd.DataFrame(s['results'])
                     st.dataframe(
                         df_res[["title", "channelTitle", "publishedAt"]], 
+                        column_config={
+                            "publishedAt": st.column_config.DatetimeColumn("Published At", format="YYYY-MM-DD")
+                        },
                         width="content", 
                         height=(len(df_res) + 1) * 35 + 3
                     )
@@ -285,8 +291,8 @@ with tabs[1]:
                     })
             df = pd.DataFrame(rankings)
         
-        # Side-by-Side Layout with spacer to keep them close
-        col_main, col_sim, col_spacer = st.columns([1.5, 1.5, 1])
+        # Side-by-Side Layout
+        col_main, col_sim = st.columns(2)
         
         with col_main:
             event = ui_components.render_channel_table(df)

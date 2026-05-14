@@ -91,7 +91,7 @@ def create_channel_profile_text(channel_data):
     titles = [v['title'] for v in selected_videos if 'title' in v]
     return " | ".join(titles)
 
-def find_similar_channels(target_id, embeddings_dict, limit=10):
+def find_similar_channels(target_id, embeddings_dict, limit=15):
     """
     Finds channels similar to the target_id based on cosine similarity of embeddings.
     

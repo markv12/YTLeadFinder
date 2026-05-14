@@ -34,12 +34,10 @@ def render_channel_table(df: pd.DataFrame, show_selection: bool = True):
     selection_mode = "single-row" if show_selection else []
     on_select = "rerun" if show_selection else "ignore"
 
-    # Use 'width' instead of 'use_container_width' to avoid deprecation warnings
-    # 'content' mimics use_container_width=False
     event = st.dataframe(
         df, 
         hide_index=True,
-        width="content",
+        use_container_width=True,
         column_config=col_cfg,
         height=(len(df) + 1) * 35 + 3,
         selection_mode=selection_mode,

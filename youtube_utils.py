@@ -112,7 +112,7 @@ def get_all_channel_videos(uploads_playlist_id):
         videos.append({
             "id": item["contentDetails"]["videoId"],
             "title": item["snippet"]["title"],
-            "publishedAt": item["snippet"]["publishedAt"][:10]
+            "publishedAt": item["snippet"]["publishedAt"]
         })
         
     next_page_token = response.get("nextPageToken")
@@ -131,7 +131,7 @@ def get_all_channel_videos(uploads_playlist_id):
             videos.append({
                 "id": item["contentDetails"]["videoId"],
                 "title": item["snippet"]["title"],
-                "publishedAt": item["snippet"]["publishedAt"][:10]
+                "publishedAt": item["snippet"]["publishedAt"]
             })
         next_page_token = response.get("nextPageToken")
             
