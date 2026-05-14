@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-def render_channel_table(df: pd.DataFrame, show_selection: bool = True):
+def render_channel_table(df: pd.DataFrame, show_selection: bool = True, key: str = None):
     """
     Renders a standard channel data table with specific column configurations.
     
@@ -10,9 +10,10 @@ def render_channel_table(df: pd.DataFrame, show_selection: bool = True):
                           Expected columns: 'Channel', 'Subs', 'Videos', 'URL'.
                           Optional columns: 'Similarity Score', 'ID'.
         show_selection (bool): Whether to enable row selection.
+        key (str): Key for the widget state.
     
     Returns:
-        The selection event from st.dataframe (or None if selection is disabled).
+        The selection event from st.dataframe (if show_selection=True) or None.
     """
     if df.empty:
         st.info("No channel data to display.")
@@ -36,6 +37,7 @@ def render_channel_table(df: pd.DataFrame, show_selection: bool = True):
 
     event = st.dataframe(
         df, 
+        key=key,
         hide_index=True,
         width="stretch",
         column_config=col_cfg,

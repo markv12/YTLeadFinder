@@ -78,6 +78,29 @@ def get_master_channel_ids():
                 channel_ids.add(res["channelId"])
     return list(channel_ids)
 
+def set_channel_status(channel_id, status):
+    """Set status to 'good_fit', 'skip', or None."""
+    data = get_channel_data(channel_id)
+    if data:
+        data['status'] = status
+        save_channel_data(channel_id, data)
+        return True
+    return False
+
+def get_channels_by_status(status=None):
+    """
+    Returns channel IDs filtered by status.
+    status=None means 'unprocessed' (no status).
+    """
+    all_ids = get_master_channel_ids()
+    filtered_ids = []
+    for cid in all_ids:
+        data = get_channel_data(cid)
+        if data:
+            if data.get('status') == status:
+                filtered_ids.append(cid)
+    return filtered_ids
+
 def save_embeddings(embeddings_dict):
     ensure_dirs()
     if not embeddings_dict:

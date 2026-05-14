@@ -47,7 +47,7 @@ if not os.getenv("YOUTUBE_API_KEY") or not os.getenv("OPENAI_API_KEY"):
     st.info("Template provided in `.env.template`")
     st.stop()
 
-tabs = st.tabs(["Search YouTube", "Channel Database"])
+tabs = st.tabs(["Search YouTube", "Channel Database", "Good Fit Channels", "Skipped Channels"])
 
 # --- Tab 1: Search YouTube ---
 with tabs[0]:
@@ -199,19 +199,21 @@ with tabs[0]:
 with tabs[1]:
     st.header("📊 Channel Database")
     
-    channel_ids = storage_utils.get_master_channel_ids()
+    # Only show channels with no status (None)
+    channel_ids = storage_utils.get_channels_by_status(None)
+    
     if not channel_ids:
-        st.info("No approved channels yet. Run a search and approve results.")
+        st.info("No new channels to review. Run a search or check other tabs.")
     else:
-        st.write(f"Tracking **{len(channel_ids)}** unique channels.")
+        st.write(f"Showing **{len(channel_ids)}** channels pending review.")
         
         # Ranking Logic
-        rank_query = st.text_input("Enter a query to rank channels by relevance (e.g., 'DAW workflow for beginners')")
+        rank_query = st.text_input("Enter a query to rank channels by relevance (e.g., 'DAW workflow for beginners')", key="db_rank_query")
         
         if "last_rankings" not in st.session_state:
             st.session_state.last_rankings = []
         
-        if st.button("Rank Channels"):
+        if st.button("Rank Channels", key="db_rank_btn"):
             new_rankings = []
             embeddings = storage_utils.load_embeddings()
             
@@ -271,7 +273,7 @@ with tabs[1]:
 
         # Determine which data to show
         if st.session_state.last_rankings:
-            # Filter rankings to only show channels currently in the master list
+            # Filter rankings to only show channels currently in the filtered master list
             df = pd.DataFrame([r for r in st.session_state.last_rankings if r['ID'] in channel_ids])
             if not df.empty:
                 df = df.sort_values(by="Similarity Score", ascending=False)
@@ -294,8 +296,9 @@ with tabs[1]:
         # Side-by-Side Layout
         col_main, col_sim = st.columns(2)
         
+        db_table_key = "channel_db_table"
         with col_main:
-            event = ui_components.render_channel_table(df)
+            event = ui_components.render_channel_table(df, show_selection=True, key=db_table_key)
             
         if event and event.selection.rows:
             selected_idx = event.selection.rows[0]
@@ -304,6 +307,21 @@ with tabs[1]:
             target_name = target_row["Channel"]
             
             with col_sim:
+                st.subheader(f"🛠️ Actions for {target_name}")
+                action_c1, action_c2 = st.columns(2)
+                
+                with action_c1:
+                    if st.button("✅ Mark as Good Fit", use_container_width=True):
+                        storage_utils.set_channel_status(target_id, "good_fit")
+                        st.toast(f"✅ {target_name} marked as Good Fit!")
+                        st.rerun()
+                with action_c2:
+                    if st.button("❌ Mark as Skip", use_container_width=True):
+                        storage_utils.set_channel_status(target_id, "skip")
+                        st.toast(f"❌ {target_name} marked as Skip!")
+                        st.rerun()
+                
+                st.divider()
                 st.subheader(f"✨ Channels like {target_name}")
                 embeddings = storage_utils.load_embeddings()
                 similar = openai_utils.find_similar_channels(target_id, embeddings)
@@ -327,3 +345,92 @@ with tabs[1]:
                     if sim_rankings:
                         sim_df = pd.DataFrame(sim_rankings)
                         ui_components.render_channel_table(sim_df, show_selection=False)
+        else:
+            with col_sim:
+                st.info("💡 Click anywhere on a row to select a channel and see actions/similarities.")
+
+# --- Tab 3: Good Fit Channels ---
+with tabs[2]:
+    st.header("✅ Good Fit Channels")
+    
+    good_fit_ids = storage_utils.get_channels_by_status("good_fit")
+    
+    if not good_fit_ids:
+        st.info("No channels marked as 'Good Fit' yet.")
+    else:
+        st.write(f"You have identified **{len(good_fit_ids)}** high-quality leads.")
+        
+        rankings = []
+        for cid in good_fit_ids:
+            c_data = storage_utils.get_channel_data(cid)
+            if c_data:
+                rankings.append({
+                    "ID": cid,
+                    "Channel": c_data["title"],
+                    "Subs": c_data.get("subscriberCount"),
+                    "Videos": c_data.get("videoCount"),
+                    "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
+                })
+        df_good = pd.DataFrame(rankings)
+        
+        col_good_main, col_good_action = st.columns([2, 1])
+        good_table_key = "good_fit_table"
+        
+        with col_good_main:
+            event = ui_components.render_channel_table(df_good, show_selection=True, key=good_table_key)
+            
+        if event and event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            target_row = df_good.iloc[selected_idx]
+            target_id = target_row["ID"]
+            target_name = target_row["Channel"]
+            
+            with col_good_action:
+                st.subheader(f"🛠️ Actions")
+                if st.button(f"🔄 Move '{target_name}' back to Database", use_container_width=True):
+                    storage_utils.set_channel_status(target_id, None)
+                    st.toast(f"🔄 {target_name} moved back to database.")
+                    st.rerun()
+
+# --- Tab 4: Skipped Channels ---
+with tabs[3]:
+    st.header("❌ Skipped Channels")
+    
+    skipped_ids = storage_utils.get_channels_by_status("skip")
+    
+    if not skipped_ids:
+        st.info("No channels skipped yet.")
+    else:
+        st.write(f"Showing **{len(skipped_ids)}** skipped channels.")
+        
+        rankings = []
+        for cid in skipped_ids:
+            c_data = storage_utils.get_channel_data(cid)
+            if c_data:
+                rankings.append({
+                    "ID": cid,
+                    "Channel": c_data["title"],
+                    "Subs": c_data.get("subscriberCount"),
+                    "Videos": c_data.get("videoCount"),
+                    "URL": f"https://youtube.com/{c_data.get('customUrl', '')}"
+                })
+        df_skip = pd.DataFrame(rankings)
+        
+        col_skip_main, col_skip_action = st.columns([2, 1])
+        skip_table_key = "skip_table"
+        
+        with col_skip_main:
+            event = ui_components.render_channel_table(df_skip, show_selection=True, key=skip_table_key)
+            
+        if event and event.selection.rows:
+            selected_idx = event.selection.rows[0]
+            target_row = df_skip.iloc[selected_idx]
+            target_id = target_row["ID"]
+            target_name = target_row["Channel"]
+            
+            with col_skip_action:
+                st.subheader(f"🛠️ Actions")
+                if st.button(f"🔄 Move '{target_name}' back to Database", use_container_width=True):
+                    storage_utils.set_channel_status(target_id, None)
+                    st.toast(f"🔄 {target_name} moved back to database.")
+                    st.rerun()
