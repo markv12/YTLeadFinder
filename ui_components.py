@@ -37,7 +37,7 @@ def render_channel_table(df: pd.DataFrame, show_selection: bool = True):
     event = st.dataframe(
         df, 
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
         column_config=col_cfg,
         height=(len(df) + 1) * 35 + 3,
         selection_mode=selection_mode,
