@@ -104,8 +104,8 @@ with tabs[0]:
                         
                         def process_channel(stats):
                             cid = stats['id']
-                            # Get all videos
-                            videos = youtube_utils.get_all_channel_videos(stats['uploadsPlaylistId'])
+                            # Get recent videos
+                            videos = youtube_utils.get_recent_channel_videos(stats['uploadsPlaylistId'])
                             # Get stats for all videos
                             v_ids = [v['id'] for v in videos]
                             v_stats = youtube_utils.batch_get_video_stats(v_ids)

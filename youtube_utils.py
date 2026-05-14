@@ -94,46 +94,46 @@ def batch_get_channel_stats(channel_ids):
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def get_all_channel_videos(uploads_playlist_id):
+def get_recent_channel_videos(uploads_playlist_id, limit=150):
     youtube = get_youtube_client()
     if not youtube: return []
     videos = []
     
-    # First, get the first page to see total results/tokens
-    logger.info(f"YouTube Request: Fetching video list for playlist {uploads_playlist_id}")
-    request = youtube.playlistItems().list(
-        part="snippet,contentDetails",
-        playlistId=uploads_playlist_id,
-        maxResults=50
-    )
-    response = request.execute()
+    next_page_token = None
     
-    for item in response.get("items", []):
-        videos.append({
-            "id": item["contentDetails"]["videoId"],
-            "title": item["snippet"]["title"],
-            "publishedAt": item["snippet"]["publishedAt"]
-        })
+    while len(videos) < limit:
+        # Calculate how many more we need
+        remaining = limit - len(videos)
+        # API max is 50
+        batch_size = min(remaining, 50)
         
-    next_page_token = response.get("nextPageToken")
-    if not next_page_token:
-        return videos
-
-    while next_page_token:
-        request = youtube.playlistItems().list(
-            part="snippet,contentDetails",
-            playlistId=uploads_playlist_id,
-            maxResults=50,
-            pageToken=next_page_token
-        )
-        response = request.execute()
+        logger.info(f"YouTube Request: Fetching {batch_size} videos from playlist {uploads_playlist_id} (Current: {len(videos)})")
+        
+        params = {
+            "part": "snippet,contentDetails",
+            "playlistId": uploads_playlist_id,
+            "maxResults": batch_size
+        }
+        if next_page_token:
+            params["pageToken"] = next_page_token
+            
+        try:
+            request = youtube.playlistItems().list(**params)
+            response = request.execute()
+        except Exception as e:
+            logger.error(f"Error fetching playlist items: {e}")
+            break
+            
         for item in response.get("items", []):
             videos.append({
                 "id": item["contentDetails"]["videoId"],
                 "title": item["snippet"]["title"],
                 "publishedAt": item["snippet"]["publishedAt"]
             })
+            
         next_page_token = response.get("nextPageToken")
+        if not next_page_token:
+            break
             
     return videos
 
