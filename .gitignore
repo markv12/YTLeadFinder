@@ -1,5 +1,6 @@
 # API Keys and Secrets
 .env
+google_credentials.json
 
 # Local Data Database
 data/

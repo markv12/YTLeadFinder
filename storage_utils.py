@@ -2,6 +2,7 @@ import json
 import os
 import numpy as np
 from datetime import datetime
+import streamlit as st
 
 DATA_DIR = "data"
 SEARCHES_FILE = os.path.join(DATA_DIR, "searches.jsonl")
@@ -62,7 +63,9 @@ def save_channel_data(channel_id, data):
     with open(file_path, "w") as f:
         json.dump(data, f, indent=4)
 
+@st.cache_data(show_spinner=False)
 def get_channel_data(channel_id):
+    """Fetch channel data from disk, cached per channel."""
     file_path = os.path.join(CHANNELS_DIR, f"{channel_id}.json")
     if os.path.exists(file_path):
         with open(file_path, "r") as f:
@@ -84,13 +87,15 @@ def set_channel_status(channel_id, status):
     if data:
         data['status'] = status
         save_channel_data(channel_id, data)
+        # Clear specific cache for this channel
+        get_channel_data.clear(channel_id)
         return True
     return False
 
 def get_channels_by_status(status=None):
     """
     Returns channel IDs filtered by status.
-    status=None means 'unprocessed' (no status).
+    Uses the individual channel cache for performance.
     """
     all_ids = get_master_channel_ids()
     filtered_ids = []
